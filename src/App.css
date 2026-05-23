@@ -11,31 +11,51 @@ body {
 }
 
 .app {
-  max-width: 700px;
-  margin: 40px auto;
+  width: min(100%, 960px);
+  max-width: 960px;
+  min-height: 100vh;
+  height: 100vh;
+  margin: 0 auto;
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-h1 {
-  text-align: center;
-  font-size: 24px;
-  color: #a78bfa;
+  gap: 18px;
+  background: #0f0f0f;
 }
 
 .chat-box {
-  background: #1a1a1a;
-  border: 1px solid #2e2e2e;
-  border-radius: 12px;
-  padding: 20px;
-  min-height: 400px;
-  max-height: 500px;
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: 18px;
+  padding: 24px 12px 10px;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-gutter: stable both-edges;
+}
+
+.chat-box.scrolling::-webkit-scrollbar-thumb {
+  background: rgba(167, 139, 250, 0.35);
+}
+
+.chat-box::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.chat-box::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-box::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s ease;
 }
 
 .placeholder {
@@ -45,27 +65,21 @@ h1 {
 }
 
 .message {
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 12px 16px;
+  border-radius: 14px;
   max-width: 85%;
+  background: rgba(242, 242, 247, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.05), inset 0 0 18px rgba(167, 139, 250, 0.12);
+  backdrop-filter: blur(8px);
 }
 
 .message.user {
-  background: #4c1d95;
   align-self: flex-end;
 }
 
 .message.ai {
-  background: #1e293b;
   align-self: flex-start;
-}
-
-.label {
-  font-size: 11px;
-  font-weight: 600;
-  opacity: 0.6;
-  display: block;
-  margin-bottom: 4px;
 }
 
 .message p {
@@ -87,17 +101,20 @@ h1 {
 .input-row {
   display: flex;
   gap: 10px;
+  padding: 0 12px;
 }
 
 input {
   flex: 1;
   padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #2e2e2e;
-  background: #1a1a1a;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(242, 242, 247, 0.12);
   color: #f0f0f0;
   font-size: 14px;
   outline: none;
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.05), inset 0 0 18px rgba(167, 139, 250, 0.12);
+  backdrop-filter: blur(8px);
 }
 
 input:focus {
@@ -106,16 +123,17 @@ input:focus {
 
 button {
   padding: 12px 20px;
-  background: #7c3aed;
+  background: #a78bfa;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 14px;
   cursor: pointer;
+  box-shadow: 0 10px 30px rgba(167, 139, 250, 0.25);
 }
 
 button:hover {
-  background: #6d28d9;
+  background: #8b5cf6;
 }
 
 button:disabled {

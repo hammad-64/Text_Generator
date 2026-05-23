@@ -1,12 +1,41 @@
 
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import "./App.css"
 
 function App() {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
+  const chatBoxRef = useRef(null)
+  const scrollTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    if (chatBoxRef.current) {
+      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight
+    }
+  }, [messages])
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleScroll = () => {
+    const chatBox = chatBoxRef.current
+    if (!chatBox) return
+
+    chatBox.classList.add("scrolling")
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current)
+    }
+    scrollTimeoutRef.current = setTimeout(() => {
+      chatBox.classList.remove("scrolling")
+    }, 600)
+  }
 
   const sendMessage = async () => {
     if (!input.trim()) return
@@ -28,6 +57,7 @@ function App() {
         throw new Error(data?.error || data?.message || "Server error")
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 700))
       const aiMessage = { role: "ai", text: data.text }
       setMessages((prev) => [...prev, aiMessage])
     } catch (error) {
@@ -41,6 +71,7 @@ function App() {
         message = "API key error. Verify GEMINI_API_KEY on the backend server."
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 700))
       setMessages((prev) => [...prev, { role: "ai", text: message }])
     } finally {
       setLoading(false)
@@ -53,16 +84,17 @@ function App() {
 
   return (
     <div className="app">
-      <h1>AI Chat App</h1>
-      <div className="chat-box">
-        {messages.length === 0 && <p className="placeholder">Ask me anything...</p>}
+      <div className="chat-box" ref={chatBoxRef} onScroll={handleScroll}>
         {messages.map((msg, i) => (
           <div key={i} className={`message ${msg.role}`}>
-            <span className="label">{msg.role === "user" ? "You" : "AI"}</span>
             <p>{msg.text}</p>
           </div>
         ))}
-        {loading && <p className="loading">AI is thinking...</p>}
+        {loading && (
+          <div className="message ai loading">
+            <p>AI is thinking...</p>
+          </div>
+        )}
       </div>
       <div className="input-row">
         <input
@@ -70,7 +102,7 @@ function App() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type anything and press Enter..."
+          placeholder="Ask me anything..."
         />
         <button onClick={sendMessage} disabled={loading}>Send</button>
       </div>
