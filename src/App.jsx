@@ -1,10 +1,8 @@
-
-
 import { useState, useEffect, useRef } from "react"
 import "./App.css"
 
 function App() {
-  const modelName = "mistralai/Mistral-7B-Instruct-v0.3"
+  const modelName = "google/flan-t5-large"
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState([])
   const [chatHistory, setChatHistory] = useState([])
@@ -17,51 +15,52 @@ function App() {
   const inputRef = useRef(null)
   const scrollTimeoutRef = useRef(null)
 
-  const updateSession = (id, updater) => {
-    setChatHistory((prev) =>
-      prev.map((session) => {
-        if (session.id !== id) return session
-        return typeof updater === "function" ? updater(session) : { ...session, ...updater }
-      })
-    )
-  }
-
-  const selectHistoryItem = (id) => {
-    const session = chatHistory.find((history) => history.id === id)
-    if (!session) return
-
-    setActiveChatId(id)
-    setMessages(session.messages ?? [])
-    setHistoryVisible(true)
-    // focus input after selecting a history item
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }
-
+  // Auto scroll to bottom on new messages
   useEffect(() => {
     if (chatBoxRef.current) {
       chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight
     }
   }, [messages])
 
+  // Cleanup scroll timeout on unmount
   useEffect(() => {
     return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current)
-      }
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
     }
   }, [])
+
+  // Focus input on new chat
+  useEffect(() => {
+    if (activeChatId === null && messages.length === 0) {
+      const t = setTimeout(() => inputRef.current?.focus(), 20)
+      return () => clearTimeout(t)
+    }
+  }, [activeChatId, messages.length])
 
   const handleScroll = () => {
     const chatBox = chatBoxRef.current
     if (!chatBox) return
-
     chatBox.classList.add("scrolling")
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current)
-    }
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
     scrollTimeoutRef.current = setTimeout(() => {
       chatBox.classList.remove("scrolling")
     }, 600)
+  }
+
+  const newChat = () => {
+    setMessages([])
+    setInput("")
+    setActiveChatId(null)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const selectHistoryItem = (id) => {
+    const session = chatHistory.find((s) => s.id === id)
+    if (!session) return
+    setActiveChatId(id)
+    setMessages(session.messages)
+    setHistoryVisible(true)
+    setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   const openDeleteConfirm = (id, event) => {
@@ -69,31 +68,21 @@ function App() {
       setDeleteConfirmId(null)
       return
     }
-
     const rect = event.currentTarget.getBoundingClientRect()
     const popupWidth = 150
     const spaceOnRight = window.innerWidth - rect.right - 8
     const left = spaceOnRight >= popupWidth
       ? rect.right + 8
       : Math.max(rect.right - popupWidth, 8)
-
-    setDeletePopupPosition({
-      top: rect.top,
-      left,
-    })
+    setDeletePopupPosition({ top: rect.top, left })
     setDeleteConfirmId(id)
   }
 
-  const closeDeleteConfirm = () => {
-    setDeleteConfirmId(null)
-  }
+  const closeDeleteConfirm = () => setDeleteConfirmId(null)
 
   const deleteHistoryItem = (id) => {
     setChatHistory((prev) => prev.filter((item) => item.id !== id))
-    if (deleteConfirmId === id) {
-      setDeleteConfirmId(null)
-    }
-
+    setDeleteConfirmId(null)
     if (activeChatId === id) {
       setActiveChatId(null)
       setMessages([])
@@ -103,58 +92,29 @@ function App() {
 
   useEffect(() => {
     if (!deleteConfirmId) return
-
     const handleOutsideClick = (event) => {
       if (
-        event.target.closest('.delete-popup') ||
-        event.target.closest('.history-item-dot')
-      ) {
-        return
-      }
+        event.target.closest(".delete-popup") ||
+        event.target.closest(".history-item-dot")
+      ) return
       setDeleteConfirmId(null)
     }
-
-    document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
+    document.addEventListener("mousedown", handleOutsideClick)
+    return () => document.removeEventListener("mousedown", handleOutsideClick)
   }, [deleteConfirmId])
-
-  const newChat = () => {
-    setMessages([])
-    setInput("")
-    setActiveChatId(null)
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }
-
-  // Ensure the input is focused when entering the empty/new-chat state.
-  useEffect(() => {
-    if (activeChatId === null && messages.length === 0) {
-      const t = setTimeout(() => inputRef.current?.focus(), 20)
-      return () => clearTimeout(t)
-    }
-  }, [activeChatId, messages.length])
-
-  // Keep `messages` in sync with `chatHistory` when sessions update.
-  useEffect(() => {
-    if (activeChatId == null) return
-    const session = chatHistory.find((s) => s.id === activeChatId)
-    if (!session) return
-    // Only update if the session has different messages (e.g. AI reply appended)
-    const sessionMsgs = session.messages ?? []
-    if (JSON.stringify(sessionMsgs) !== JSON.stringify(messages)) {
-      setMessages(sessionMsgs)
-    }
-  }, [chatHistory, activeChatId])
 
   const sendMessage = async () => {
     const trimmedInput = input.trim()
-    if (!trimmedInput) return
+    if (!trimmedInput || loading) return
 
-    if (!historyVisible) {
-      setHistoryVisible(true)
-    }
+    if (!historyVisible) setHistoryVisible(true)
 
     const userMessage = { role: "user", text: trimmedInput }
     const nextMessages = [...messages, userMessage]
+    setMessages(nextMessages)
+    setInput("")
+    setLoading(true)
+
     let sessionId = activeChatId
 
     if (!sessionId) {
@@ -169,59 +129,69 @@ function App() {
         ...prev,
       ])
     } else {
-      updateSession(sessionId, (session) => ({
-        ...session,
-        messages: nextMessages,
-      }))
+      setChatHistory((prev) =>
+        prev.map((s) =>
+          s.id === sessionId ? { ...s, messages: nextMessages } : s
+        )
+      )
     }
 
-    setMessages(nextMessages)
-    setInput("")
-    setLoading(true)
-
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmedInput }),
-      })
+      const response = await fetch(
+        `https://api-inference.huggingface.co/models/${modelName}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_HF_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            inputs: trimmedInput,
+            options: { wait_for_model: true },
+          }),
+        }
+      )
 
       const data = await response.json()
+
       if (!response.ok) {
-        throw new Error(data?.error || data?.message || "Server error")
+        throw new Error(data?.error || "API error")
       }
 
       await new Promise((resolve) => setTimeout(resolve, 700))
-      const aiMessage = { role: "ai", text: data.text }
-      const nextMessagesWithAi = [...nextMessages, aiMessage]
-      setMessages(nextMessagesWithAi)
-      if (sessionId) {
-        updateSession(sessionId, (session) => ({
-          ...session,
-          messages: nextMessagesWithAi,
-        }))
-      }
-    } catch (error) {
-      console.error(error)
-      const errMsg = error?.message || ""
-      let message = "Something went wrong. Check your server logs or API key settings."
 
-      if (errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
-        message = "Quota exceeded. Check your plan and billing details."
-      } else if (errMsg.toLowerCase().includes("api key")) {
-        message = "API key error. Verify HUGGINGFACE_API_KEY on the backend server."
+      const aiText =
+        data[0]?.generated_text ||
+        data?.generated_text ||
+        "No response received."
+
+      const aiMessage = { role: "ai", text: aiText }
+      const finalMessages = [...nextMessages, aiMessage]
+      setMessages(finalMessages)
+      setChatHistory((prev) =>
+        prev.map((s) =>
+          s.id === sessionId ? { ...s, messages: finalMessages } : s
+        )
+      )
+    } catch (err) {
+      console.error("API Error:", err)
+
+      let errorText = "Something went wrong. Check your API key."
+      if (err.message?.includes("quota") || err.message?.includes("RESOURCE_EXHAUSTED")) {
+        errorText = "Quota exceeded. Check your Hugging Face plan."
+      } else if (err.message?.toLowerCase().includes("api key")) {
+        errorText = "API key error. Check your VITE_HF_API_KEY in .env file."
       }
 
-      const errorMessage = { role: "ai", text: message }
-      const nextMessagesWithError = [...nextMessages, errorMessage]
       await new Promise((resolve) => setTimeout(resolve, 700))
-      setMessages(nextMessagesWithError)
-      if (activeChatId) {
-        updateSession(activeChatId, (session) => ({
-          ...session,
-          messages: nextMessagesWithError,
-        }))
-      }
+      const errMessage = { role: "ai", text: errorText }
+      const finalMessages = [...nextMessages, errMessage]
+      setMessages(finalMessages)
+      setChatHistory((prev) =>
+        prev.map((s) =>
+          s.id === sessionId ? { ...s, messages: finalMessages } : s
+        )
+      )
     } finally {
       setLoading(false)
     }
@@ -260,7 +230,10 @@ function App() {
                   {deleteConfirmId === history.id && (
                     <div
                       className="delete-popup"
-                      style={{ top: deletePopupPosition.top, left: deletePopupPosition.left }}
+                      style={{
+                        top: deletePopupPosition.top,
+                        left: deletePopupPosition.left,
+                      }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
@@ -285,7 +258,9 @@ function App() {
           </section>
         )}
       </aside>
+
       <div className="split-divider" />
+
       <main className="main-content">
         <div className="chat-panel">
           {messages.length === 0 && !loading ? (
@@ -295,7 +270,6 @@ function App() {
                 <p>Start a conversation, ask a question, or generate new ideas with AI.</p>
                 <div className="model-label">Using model: {modelName}</div>
               </div>
-
               <div className="input-row centered">
                 <input
                   ref={inputRef}
@@ -305,14 +279,21 @@ function App() {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask me anything..."
                 />
-                <button onClick={sendMessage} disabled={loading}>Send</button>
+                <button onClick={sendMessage} disabled={loading}>
+                  Send
+                </button>
               </div>
-
-              <div className="input-disclaimer">AI can make mistakes, so don't rely on it completely.</div>
+              <div className="input-disclaimer">
+                AI can make mistakes, so don't rely on it completely.
+              </div>
             </div>
           ) : (
             <>
-              <div className={`chat-box ${messages.length === 0 ? "empty" : ""}`} ref={chatBoxRef} onScroll={handleScroll}>
+              <div
+                className={`chat-box ${messages.length === 0 ? "empty" : ""}`}
+                ref={chatBoxRef}
+                onScroll={handleScroll}
+              >
                 {messages.map((msg, i) => (
                   <div key={i} className={`message ${msg.role}`}>
                     <p>{msg.text}</p>
@@ -324,7 +305,6 @@ function App() {
                   </div>
                 )}
               </div>
-
               <div className="input-row">
                 <input
                   ref={inputRef}
@@ -334,11 +314,14 @@ function App() {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask me anything..."
                 />
-                <button onClick={sendMessage} disabled={loading}>Send</button>
+                <button onClick={sendMessage} disabled={loading}>
+                  Send
+                </button>
               </div>
               <div className="model-label inline">Using model: {modelName}</div>
-
-              <div className="input-disclaimer">AI can make mistakes, so don't rely on it completely.</div>
+              <div className="input-disclaimer">
+                AI can make mistakes, so don't rely on it completely.
+              </div>
             </>
           )}
         </div>
